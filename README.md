@@ -148,3 +148,16 @@ tests/                       class-based tests; each folder's tests get its mark
 ```
 
 `make test` runs everything; `make test-unit`, `make test-integration`, `make test-e2e` run one tier (or `pytest -m <tier>`).
+
+## How I worked
+
+I chose the scope, the architecture and the trade-offs: feature-first hexagonal layout with storage and repository
+ports, metadata in Postgres with blobs in a pluggable store, uuid7 ids and generated storage keys, the upload validation
+policy, and three test tiers with contract suites per adapter.
+
+I used Claude (Claude Code) as a pair programmer for implementation, test scaffolding and reviewing the work against
+the brief, which is why commits carry a `Co-Authored-By` trailer. I reviewed every change and can walk through any part
+of the code and the reasoning behind it.
+
+I started committing late, so the first commits were split afterwards in dependency order (each one lint-clean with its
+tests passing). Everything after that is committed as it was built.
