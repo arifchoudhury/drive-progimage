@@ -1,5 +1,7 @@
 # ProgImage
 
+[![CI](https://github.com/arifchoudhury/drive-progimage/actions/workflows/ci.yml/badge.svg)](https://github.com/arifchoudhury/drive-progimage/actions/workflows/ci.yml)
+
 An API-only image storage service: upload an image, get back an id, then retrieve the image with that id.
 
 ```
@@ -145,6 +147,8 @@ Schema changes go through Alembic (`alembic/`, config in `alembic.ini`):
 | `make migrate` / `make migrate-down` | upgrade to head / roll back one revision |
 | `make migrate-current` / `make migrate-history` | where the DB is / list revisions |
 | `make migrate-check` | fail if models and migrations have drifted |
+| `make migrate-heads` | fail unless the revision history has exactly one head |
+| `make migrate-roundtrip` | upgrade, downgrade to base, upgrade again (destructive) |
 | `make db-reset` | wipe the local Postgres volume and re-migrate (destructive) |
 
 New tables: add the model, import it in `alembic/env.py`, then `make migration`.
@@ -190,6 +194,20 @@ tests/                       class-based tests; each folder's tests get its mark
 ```
 
 `make test` runs everything; `make test-unit`, `make test-integration`, `make test-e2e` run one tier (or `pytest -m <tier>`).
+
+### CI
+
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`, as four parallel jobs:
+
+| Job | Checks |
+| --- | --- |
+| `lint` | `uv.lock` is up to date, ruff (lint + format), strict mypy |
+| `migrations` | one Alembic head, a fresh database upgrades to head, models match migrations (`alembic check`), downgrade to base and back |
+| `test` | all three tiers against a Postgres 18 service container |
+| `docker` | `make up` builds the image and runs the migrate job, then a smoke test: health probes, upload and fetch an image |
+
+Locally: `make lint migrate-heads migrate-check test`. `make migrate-roundtrip` drops every table, so point
+`PROGIMAGE_DATABASE_URL` at a throwaway database before running it.
 
 ## How I worked
 

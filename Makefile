@@ -76,7 +76,7 @@ format:
 	uv run ruff format .
 
 test:
-	uv run pytest
+	uv run pytest $(PYTEST_ARGS)
 
 test-unit:
 	uv run pytest tests/unit
