@@ -1,0 +1,17 @@
+meta {
+  name: Get image
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/images/{{imageId}}
+  body: none
+  auth: inherit
+}
+
+tests {
+  test("returns 200", function () {
+    expect(res.status).to.equal(200);
+  });
+}

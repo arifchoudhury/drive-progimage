@@ -1,0 +1,28 @@
+meta {
+  name: Upload image
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/images
+  body: multipartForm
+  auth: inherit
+}
+
+body:multipart-form {
+  file: @file(../sample_data/red-square.png)
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("imageId", res.body.id);
+  }
+}
+
+tests {
+  test("returns 201 with an id", function () {
+    expect(res.status).to.equal(201);
+    expect(res.body.id).to.be.a("string");
+  });
+}
