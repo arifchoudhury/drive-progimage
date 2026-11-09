@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3  # no floating major tag upstream
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -50,7 +50,7 @@ jobs:
       PROGIMAGE_AUTH_PASSWORD: ci
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3  # no floating major tag upstream
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -83,7 +83,7 @@ jobs:
       PROGIMAGE_TEST_DATABASE_URL: postgresql+psycopg://progimage:progimage@localhost:5433/progimage_test
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3  # no floating major tag upstream
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
