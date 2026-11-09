@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
-from app.core.body_limit import MaxBodySizeMiddleware
 from app.core.config import Settings, get_settings
+from app.images.api.body_limit import MaxBodySizeMiddleware
 from app.images.api.router import router as images_router
 
 
