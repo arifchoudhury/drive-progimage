@@ -7,7 +7,7 @@ Python 3.14, FastAPI, Postgres, Redis, uv.
 
 ```
 POST /images        multipart field "file"  → 201 {"id": "..."}
-GET  /images/{id}   → the image bytes, with the right Content-Type
+GET  /images/{id}   → the image bytes, with the right Content-Type and locked-down, cacheable headers
 GET  /images        → {"items": [...metadata...]}, newest first
 GET  /healthz       liveness     GET /readyz   readiness (both unauthenticated)
 ```
@@ -57,7 +57,9 @@ A rejected upload stores nothing, and images never change once stored. Errors ar
 client's Content-Type and filename are ignored. Checks run cheapest first: size, format, pixel count (decompression
 bombs), then `verify()`. The size limit is enforced at the edge (before auth and parsing) and again in the domain.
 Storage keys are generated (`<uuid7>.<ext>`) and local paths can't escape the storage root. Basic auth uses a
-constant-time compare.
+constant-time compare. Served images carry `nosniff`, `CSP: default-src 'none'; sandbox` and a generated
+`Content-Disposition` filename, so a browser only ever treats them as images, and `Cache-Control: private,
+immutable` since they never change.
 
 **Rate limiting** is at two layers. Coarse per-IP flood protection belongs at the gateway or ingress, which is
 deployment config and not built here. The app enforces per-client quotas over a 60-second window: 30 writes and 600
@@ -88,7 +90,9 @@ rejection), not just the happy path.
 
 ## What I'd do next
 
-1. `nosniff`, CSP and `Cache-Control` on served bytes, plus a `sha256` ETag for 304s.
+1. Conditional GETs: store a `sha256` per upload as a strong `ETag` and answer `If-None-Match` with a 304 from the
+   database row, without reading storage. Deferred because nothing in front of the API caches yet; in production a
+   CDN would absorb most repeat reads.
 2. Orphan cleanup and atomic local writes (temp file, then rename).
 3. RFC 9457 error responses with stable types, documented in OpenAPI.
 4. Streaming GET, observability (logs, request ids, metrics).

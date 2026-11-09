@@ -1,3 +1,4 @@
+import mimetypes
 import uuid
 from typing import Annotated, Any
 
@@ -31,6 +32,16 @@ _UPLOAD_RESPONSES: dict[int | str, dict[str, Any]] = {
     status.HTTP_413_CONTENT_TOO_LARGE: {"description": "The upload exceeds the size limit"},
     status.HTTP_415_UNSUPPORTED_MEDIA_TYPE: {"description": f"A real image, but not one of: {_ACCEPTED}"},
     status.HTTP_422_UNPROCESSABLE_CONTENT: {"description": "Missing file, not an image, corrupt, or too many pixels"},
+}
+
+
+# We serve user-uploaded bytes from our own origin, so a browser must only ever treat them as an image: no type
+# sniffing, nothing runs or loads if they render as a document. Images never change once stored, so they cache
+# for a year; `private` because the endpoint is behind auth.
+_SERVE_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "default-src 'none'; sandbox",
+    "Cache-Control": "private, max-age=31536000, immutable",
 }
 
 
@@ -71,4 +82,11 @@ def get_image(image_id: uuid.UUID, service: ImageServiceDep, response: Response)
     except ImageNotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Image not found") from exc
     # A returned Response skips FastAPI's merge of dependency-set headers (RateLimit-*), so carry them over.
-    return Response(content=image.data, media_type=image.content_type, headers=response.headers)
+    # The download name is generated, never the client's filename.
+    extension = mimetypes.guess_extension(image.content_type) or ""
+    headers = {
+        **response.headers,
+        **_SERVE_HEADERS,
+        "Content-Disposition": f'inline; filename="{image_id}{extension}"',
+    }
+    return Response(content=image.data, media_type=image.content_type, headers=headers)
