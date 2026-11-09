@@ -34,3 +34,6 @@ class TestImageStorageContract:
         storage.save("a.png", b"1")
         storage.save("b.jpg", b"2")
         assert (storage.load("a.png"), storage.load("b.jpg")) == (b"1", b"2")
+
+    def test_check_passes_on_a_healthy_backend(self, storage: ImageStorage) -> None:
+        storage.check()

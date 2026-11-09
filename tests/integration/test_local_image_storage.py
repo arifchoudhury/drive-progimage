@@ -37,3 +37,16 @@ class TestLocalImageStorage:
             storage.save(key, b"x")
         with pytest.raises(ValueError, match="escapes"):
             storage.load(key)
+
+    def test_check_leaves_no_probe_file_behind(self, tmp_path: Path) -> None:
+        LocalImageStorage(tmp_path).check()
+        assert list(tmp_path.iterdir()) == []
+
+    def test_check_fails_when_the_root_is_not_writable(self, tmp_path: Path) -> None:
+        storage = LocalImageStorage(tmp_path)
+        tmp_path.chmod(0o500)
+        try:
+            with pytest.raises(OSError):
+                storage.check()
+        finally:
+            tmp_path.chmod(0o700)

@@ -1,3 +1,4 @@
+import tempfile
 from pathlib import Path
 
 
@@ -14,6 +15,12 @@ class LocalImageStorage:
     def load(self, key: str) -> bytes | None:
         path = self._path(key)
         return path.read_bytes() if path.is_file() else None
+
+    def check(self) -> None:
+        # Write and delete a real file: catches a read-only filesystem, a full disk, a missing volume or bad
+        # permissions, which a permission check alone would not.
+        with tempfile.NamedTemporaryFile(dir=self._root, prefix=".readyz-"):
+            pass
 
     def _path(self, key: str) -> Path:
         path = (self._root / key).resolve()
