@@ -17,6 +17,8 @@ class TestImageRoundTrip:
         assert fetched.status_code == 200
         assert fetched.content == original
         assert fetched.headers["content-type"] == "image/png"
+        assert fetched.headers["x-content-type-options"] == "nosniff"
+        assert fetched.headers["cache-control"] == "private, max-age=31536000, immutable"
 
     def test_unknown_id_is_404(self, http: httpx2.Client) -> None:
         assert http.get(f"/images/{uuid.uuid7()}").status_code == 404

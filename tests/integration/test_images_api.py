@@ -105,8 +105,25 @@ class TestGetImage:
         assert fetched.content == original
         assert fetched.headers["content-type"] == content_type
 
+    @pytest.mark.parametrize(("fmt", "extension"), [("PNG", ".png"), ("JPEG", ".jpg"), ("GIF", ".gif")])
+    def test_served_bytes_carry_security_and_cache_headers(
+        self, client: TestClient, make_image: Callable[[str], bytes], fmt: str, extension: str
+    ) -> None:
+        upload = client.post("/images", files={"file": ("../evil.html", make_image(fmt), "text/html")})
+        image_id = upload.json()["id"]
+
+        headers = client.get(f"/images/{image_id}").headers
+
+        assert headers["x-content-type-options"] == "nosniff"
+        assert headers["content-security-policy"] == "default-src 'none'; sandbox"
+        assert headers["cache-control"] == "private, max-age=31536000, immutable"
+        assert headers["content-disposition"] == f'inline; filename="{image_id}{extension}"'
+        assert "ratelimit-limit" in headers  # still carried over
+
     def test_unknown_id_is_404(self, client: TestClient) -> None:
-        assert client.get(f"/images/{uuid.uuid7()}").status_code == 404
+        response = client.get(f"/images/{uuid.uuid7()}")
+        assert response.status_code == 404
+        assert "immutable" not in response.headers.get("cache-control", "")  # a miss must not be cached
 
     def test_malformed_id_is_rejected(self, client: TestClient) -> None:
         assert client.get("/images/not-a-valid-id").status_code == 422
