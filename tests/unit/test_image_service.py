@@ -155,3 +155,15 @@ class TestGet:
 
         with pytest.raises(ImageNotFoundError):
             service.get(image_id)
+
+
+class TestList:
+    def test_is_empty_before_any_upload(self, service: ImageService) -> None:
+        assert service.list() == []
+
+    def test_returns_uploaded_images_newest_first(
+        self, service: ImageService, repository: InMemoryImageRepository, make_image: Callable[[str], bytes]
+    ) -> None:
+        first = service.upload(make_image("PNG"), "a.png")
+        second = service.upload(make_image("PNG"), "b.png")
+        assert [image.id for image in service.list()] == [second, first]

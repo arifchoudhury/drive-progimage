@@ -27,3 +27,6 @@ class InMemoryImageRepository:
 
     def get(self, image_id: uuid.UUID) -> Image | None:
         return self.images.get(image_id)
+
+    def list(self) -> list[Image]:
+        return sorted(self.images.values(), key=lambda image: image.id, reverse=True)

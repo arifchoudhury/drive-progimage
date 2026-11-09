@@ -5,18 +5,21 @@ An API-only image storage service: upload an image, get back an id, then retriev
 ```
 POST /images        multipart/form-data, field "file"  → 201 {"id": "..."}
 GET  /images/{id}   → the image bytes, with the correct Content-Type
+GET  /images        → 200 {"items": [{id, original_filename, content_type, size_bytes, created_at}, ...]}, newest first
 ```
 
 | status | when |
 |---|---|
 | `201` | upload stored; body is `{"id": "<uuid7>"}` |
-| `401` | missing or wrong credentials (both endpoints) |
+| `401` | missing or wrong credentials (all endpoints) |
 | `404` | no image with that id (or its bytes are gone) |
 | `413` | request body or image over `PROGIMAGE_MAX_UPLOAD_BYTES` (default 10 MiB) |
 | `415` | a real image, but not JPEG, PNG, GIF or WebP |
 | `422` | no file, not an image, corrupt/truncated, or over `PROGIMAGE_MAX_IMAGE_PIXELS` (default 40 MP) |
 
 Errors are FastAPI's `{"detail": "..."}`.
+
+`GET /images` returns every image in one response. Pagination is not implemented yet (see the `TODO(pagination)` notes in the code); the `items` wrapper leaves room to add it without a breaking change.
 
 Python 3.14, FastAPI and uv.
 
@@ -43,7 +46,7 @@ set the image path in *Upload image*, then run *Upload image* → *Get image*).
 
 ## Auth
 
-Both `/images` endpoints use HTTP Basic auth. Set `PROGIMAGE_AUTH_USERNAME` and `PROGIMAGE_AUTH_PASSWORD` (see `.env.example`; the app won't start without them).
+All `/images` endpoints use HTTP Basic auth. Set `PROGIMAGE_AUTH_USERNAME` and `PROGIMAGE_AUTH_PASSWORD` (see `.env.example`; the app won't start without them).
 
 ```bash
 curl -u admin:change-me -F file=@photo.jpg localhost:8001/images

@@ -20,3 +20,11 @@ class ImageRepository(Protocol):
     def add(self, image: Image) -> None: ...
 
     def get(self, image_id: uuid.UUID) -> Image | None: ...
+
+    def list(self) -> list[Image]:
+        """Every image, newest first.
+
+        TODO(pagination): unbounded for now. Before the table grows, take a `limit` and an `after` cursor
+        on `id` (uuid7 ids are time-ordered and unique, so they make a stable keyset key).
+        """
+        ...
