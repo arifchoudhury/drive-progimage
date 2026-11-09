@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  UV_LOCKED: "1"  # every `uv sync` / `uv run` fails if uv.lock is out of date with pyproject.toml
+  UV_VERSION: "0.13.7"  # keep in step with the Dockerfile
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3  # no floating major tag upstream
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: make setup
+      - name: Pre-commit hooks on every file (so --no-verify can't skip them)
+        run: uv run pre-commit run --all-files --show-diff-on-failure
+      - run: make lint
+
+  migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: progimage
+          POSTGRES_PASSWORD: progimage
+          POSTGRES_DB: progimage
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U progimage -d progimage"
+          --health-interval 2s --health-timeout 3s --health-retries 15
+    env:
+      PROGIMAGE_DATABASE_URL: postgresql+psycopg://progimage:progimage@localhost:5433/progimage
+      # alembic/env.py loads Settings, which refuses to start without credentials. Unused here.
+      PROGIMAGE_AUTH_USERNAME: ci
+      PROGIMAGE_AUTH_PASSWORD: ci
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3  # no floating major tag upstream
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: make setup
+      - name: Single head
+        run: make migrate-heads
+      - name: Upgrade a fresh database to head
+        run: make migrate
+      - name: Models match migrations
+        run: make migrate-check
+      - name: Downgrade to base and upgrade again
+        run: make migrate-roundtrip
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: progimage
+          POSTGRES_PASSWORD: progimage
+          POSTGRES_DB: progimage
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U progimage -d progimage"
+          --health-interval 2s --health-timeout 3s --health-retries 15
+    env:
+      # The session fixture in tests/conftest.py creates and migrates this database.
+      PROGIMAGE_TEST_DATABASE_URL: postgresql+psycopg://progimage:progimage@localhost:5433/progimage_test
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3  # no floating major tag upstream
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: make setup
+      - run: make test PYTEST_ARGS="--junitxml=test-results.xml"
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: test-results.xml
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      API: http://localhost:8080
+    steps:
+      - uses: actions/checkout@v7
+      - run: cp .env.example .env
+      - name: Build and start the stack (migrate job, then api until /readyz passes)
+        run: make up
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          curl -fsS "$API/healthz"
+          curl -fsS "$API/readyz"
+          id=$(curl -fsS -u admin:change-me -F file=@sample_data/red-square.png "$API/images" | jq -er .id)
+          type=$(curl -fsS -u admin:change-me -o /dev/null -w '%{content_type}' "$API/images/$id")
+          echo "stored $id, served as $type"
+          test "$type" = "image/png"
+      - if: failure()
+        run: docker compose logs
+      - if: always()
+        run: docker compose down -v

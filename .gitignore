@@ -11,3 +11,6 @@ coverage.xml
 local_storage/
 .DS_Store
 
+
+# CI test report
+test-results.xml

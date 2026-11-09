@@ -1,7 +1,11 @@
-.PHONY: setup up down logs docker-build db-up db-down db-reset migrate migration migrate-down migrate-current migrate-history migrate-check sample-data api lint format test test-unit test-integration test-e2e
+.PHONY: setup hooks up down logs docker-build db-up db-down db-reset migrate migration migrate-down migrate-current migrate-history migrate-check migrate-heads migrate-roundtrip sample-data api lint format test test-unit test-integration test-e2e
 
 setup:
 	uv sync --all-extras
+
+# One-time: install the git pre-commit hook (ruff + file hygiene, see .pre-commit-config.yaml).
+hooks:
+	uv run pre-commit install
 
 # The whole stack in Docker: Postgres, a one-shot migration, then the API on http://localhost:8080 (API_PORT).
 up:
@@ -44,6 +48,17 @@ migrate-history:
 migrate-check:
 	uv run alembic check
 
+# Fails unless the revision history has exactly one head (two branches that each added a migration).
+migrate-heads:
+	@heads=$$(uv run alembic heads | grep -c .); \
+	if [ "$$heads" -ne 1 ]; then echo "expected 1 alembic head, found $$heads:"; uv run alembic heads; exit 1; fi
+
+# Every downgrade() must work and the schema must rebuild from nothing. DESTROYS data in the target database.
+migrate-roundtrip:
+	uv run alembic upgrade head
+	uv run alembic downgrade base
+	uv run alembic upgrade head
+
 # usage: make migration m="add sha256 column"
 migration:
 	@test -n "$(m)" || { echo 'usage: make migration m="describe the change"'; exit 1; }
@@ -65,7 +80,7 @@ format:
 	uv run ruff format .
 
 test:
-	uv run pytest
+	uv run pytest $(PYTEST_ARGS)
 
 test-unit:
 	uv run pytest tests/unit
