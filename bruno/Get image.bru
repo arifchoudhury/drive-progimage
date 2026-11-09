@@ -14,4 +14,13 @@ tests {
   test("returns 200", function () {
     expect(res.status).to.equal(200);
   });
+
+  test("is served only as an image", function () {
+    expect(res.headers["x-content-type-options"]).to.equal("nosniff");
+    expect(res.headers["content-security-policy"]).to.equal("default-src 'none'; sandbox");
+  });
+
+  test("is cacheable, since images never change", function () {
+    expect(res.headers["cache-control"]).to.equal("private, max-age=31536000, immutable");
+  });
 }
