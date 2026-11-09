@@ -68,10 +68,6 @@ rejection), not just the happy path.
 
 - **Basic auth is a stopgap:** one shared credential, no per-caller identity. A real rollout would use OAuth2/OIDC or
   API keys.
-- **Originals are stored untouched, not re-encoded:** no quality loss and no CPU in the request path, but embedded
-  metadata such as EXIF is kept.
-- **Orphaned blob if the DB insert fails.** The blob is saved first. The fix is a `pending` row, then the blob, then
-  `ready`, with a sweep of stale rows. Not built.
 - **`GET /images` is unpaginated;** the `items` wrapper lets a cursor be added without a breaking change.
 - **No rate limiting.** It would sit behind a port (in memory locally, Redis in production) and at the gateway.
 - **uuid7 ids** are time-ordered and index-friendly, but reveal roughly when an image was created.
@@ -102,6 +98,4 @@ tests/                   unit/, integration/, e2e/
 ## How I worked
 
 I chose the scope, architecture and trade-offs. I used Claude Code as a pair programmer for implementation, test
-scaffolding and review against the brief, so commits carry a `Co-Authored-By` trailer. I reviewed every change and can
-walk through any part of it. I started committing late, so the first commits were split afterwards in dependency order;
-everything after that is committed as it was built.
+scaffolding and review against the brief, so commits carry a `Co-Authored-By` trailer. I reviewed every change and can walk through any part of it.
