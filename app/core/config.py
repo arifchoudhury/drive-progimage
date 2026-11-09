@@ -32,6 +32,15 @@ class Settings(BaseSettings):
     aws_access_key_id: str | None = None
     aws_secret_access_key: SecretStr | None = None
 
+    # App-level rate limiting (app/core/rate_limit), per client IP over a 60-second window. Coarse flood protection
+    # belongs at the gateway; this is the per-endpoint quota. "memory" counts per process, so any deployment with
+    # more than one worker or replica needs "redis" for one shared count.
+    rate_limit_enabled: bool = True
+    rate_limit_backend: Literal["memory", "redis"] = "memory"
+    redis_url: str | None = None  # e.g. redis://localhost:6380/0  (see docker-compose.yml)
+    rate_limit_write_per_minute: int = Field(default=30, gt=0)  # uploads: decoding and storing is the costly path
+    rate_limit_read_per_minute: int = Field(default=600, gt=0)
+
     # TEMPORARY: a single shared credential pair for HTTP Basic auth, good enough for this assessment only.
     # A real rollout would depend on who the caller is: end users via OIDC/OAuth2 login (JWT sessions),
     # machine-to-machine via OAuth2 client credentials / API keys / mTLS, with per-caller identity and scopes.
@@ -48,6 +57,12 @@ class Settings(BaseSettings):
     def _require_bucket_for_s3(self) -> Self:
         if self.storage_backend == "s3" and not self.s3_bucket:
             raise ValueError("PROGIMAGE_S3_BUCKET is required when PROGIMAGE_STORAGE_BACKEND=s3")
+        return self
+
+    @model_validator(mode="after")
+    def _require_url_for_redis(self) -> Self:
+        if self.rate_limit_backend == "redis" and not self.redis_url:
+            raise ValueError("PROGIMAGE_REDIS_URL is required when PROGIMAGE_RATE_LIMIT_BACKEND=redis")
         return self
 
 

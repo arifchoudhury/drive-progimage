@@ -11,11 +11,11 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
 
 WORKDIR /app
 # Only the lockfile and manifest, so this layer is cached until dependencies change.
-# The s3 extra is included so one image runs either storage backend; dev/lint extras stay out.
+# The s3 and redis extras are included so one image runs any backend; dev/lint extras stay out.
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --extra s3 --no-install-project
+    uv sync --frozen --extra s3 --extra redis --no-install-project
 
 # ---- runtime: slim image, no uv, non-root ----
 FROM python:3.14-slim AS runtime

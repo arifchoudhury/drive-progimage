@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.core.db import get_session
+from app.core.rate_limit import InMemoryRateLimiter, get_rate_limiter
 from app.images.api.dependencies import get_image_validator, get_storage
 from app.images.domain.validation import ImageValidator
 from app.images.infrastructure.storage import LocalImageStorage
@@ -40,6 +41,8 @@ def anonymous_client(tmp_path: Path, clean_database: Engine, database_url: str) 
         max_bytes=settings.max_upload_bytes, max_pixels=settings.max_image_pixels
     )
     app.dependency_overrides[get_session] = session
+    limiter = InMemoryRateLimiter()  # fresh counts per test; the cached one is shared by the whole process
+    app.dependency_overrides[get_rate_limiter] = lambda: limiter
     with TestClient(app) as c:
         yield c
 

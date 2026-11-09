@@ -80,6 +80,12 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U progimage -d progimage"
           --health-interval 2s --health-timeout 3s --health-retries 15
+      redis:
+        image: redis:8
+        ports: ["6380:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s --health-timeout 3s --health-retries 15
     env:
       # The session fixture in tests/conftest.py creates and migrates this database.
       PROGIMAGE_TEST_DATABASE_URL: postgresql+psycopg://progimage:progimage@localhost:5433/progimage_test
@@ -116,6 +122,8 @@ jobs:
           type=$(curl -fsS -u admin:change-me -o /dev/null -w '%{content_type}' "$API/images/$id")
           echo "stored $id, served as $type"
           test "$type" = "image/png"
+          # Rate limit headers prove the Redis-backed limiter is wired in.
+          curl -fsS -u admin:change-me -D - -o /dev/null "$API/images" | grep -i '^ratelimit-limit:'
       - if: failure()
         run: docker compose logs
       - if: always()

@@ -4,6 +4,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import httpx2
@@ -21,8 +22,8 @@ def _free_port() -> int:
         return int(s.getsockname()[1])
 
 
-@pytest.fixture(scope="session")
-def base_url(tmp_path_factory: pytest.TempPathFactory, database_url: str) -> Iterator[str]:
+@contextmanager
+def serve(tmp_path_factory: pytest.TempPathFactory, database_url: str, **env_overrides: str) -> Iterator[str]:
     """Run the real app under uvicorn with a throwaway storage dir and the migrated test DB; no overrides."""
     storage_dir: Path = tmp_path_factory.mktemp("e2e-storage")
     port = _free_port()
@@ -34,6 +35,7 @@ def base_url(tmp_path_factory: pytest.TempPathFactory, database_url: str) -> Ite
         "PROGIMAGE_AUTH_USERNAME": USERNAME,
         "PROGIMAGE_AUTH_PASSWORD": PASSWORD,
         "PROGIMAGE_MAX_UPLOAD_BYTES": str(MAX_UPLOAD_BYTES),
+        **env_overrides,
     }
     log = tmp_path_factory.mktemp("e2e-logs") / "uvicorn.log"
 
@@ -64,6 +66,13 @@ def base_url(tmp_path_factory: pytest.TempPathFactory, database_url: str) -> Ite
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.wait()
+
+
+@pytest.fixture(scope="session")
+def base_url(tmp_path_factory: pytest.TempPathFactory, database_url: str) -> Iterator[str]:
+    """The shared server for most e2e tests. Rate limits stay at their defaults, well above what the suite sends."""
+    with serve(tmp_path_factory, database_url) as url:
+        yield url
 
 
 @pytest.fixture

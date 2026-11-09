@@ -3,7 +3,7 @@
 [![CI](https://github.com/arifchoudhury/drive-progimage/actions/workflows/ci.yml/badge.svg)](https://github.com/arifchoudhury/drive-progimage/actions/workflows/ci.yml)
 
 An API-only image storage service: upload an image, get an id back, fetch the image with that id.
-Python 3.14, FastAPI, Postgres, uv.
+Python 3.14, FastAPI, Postgres, Redis, uv.
 
 ```
 POST /images        multipart field "file"  → 201 {"id": "..."}
@@ -16,7 +16,7 @@ GET  /healthz       liveness     GET /readyz   readiness (both unauthenticated)
 
 ```bash
 cp .env.example .env   # set the auth credentials
-make up                # Docker: Postgres, migrations, API on :8080
+make up                # Docker: Postgres, Redis, migrations, API on :8080
 ```
 
 Or locally: `make setup db-up migrate api` (API on :8001, docs at `/docs`). Then `make test` and `make lint`.
@@ -47,6 +47,7 @@ concrete adapters. The S3 adapter has only been run against a fake client.
 | `201` | stored; the id is returned only after both bytes and metadata are written |
 | `401` | missing or wrong credentials |
 | `404` | no such image, or its bytes are gone |
+| `429` | rate limit spent for this window; `Retry-After` says when to retry |
 | `413` / `415` / `422` | too large / real image but not JPEG, PNG, GIF or WebP / not a valid image or too many pixels |
 | `503` | `/readyz` only: database or storage unavailable |
 
@@ -56,7 +57,18 @@ A rejected upload stores nothing, and images never change once stored. Errors ar
 client's Content-Type and filename are ignored. Checks run cheapest first: size, format, pixel count (decompression
 bombs), then `verify()`. The size limit is enforced at the edge (before auth and parsing) and again in the domain.
 Storage keys are generated (`<uuid7>.<ext>`) and local paths can't escape the storage root. Basic auth uses a
-constant-time compare. *Trade-off:* `verify()` is weak for JPEG, so a truncated JPEG can be stored; fully decoding
+constant-time compare.
+
+**Rate limiting** is at two layers. Coarse per-IP flood protection belongs at the gateway or ingress, which is
+deployment config and not built here. The app enforces per-client quotas over a 60-second window: 30 writes and 600
+reads per minute by default, set by `PROGIMAGE_RATE_LIMIT_*`. A limit applies before auth, so failed logins count
+too. It sits behind a `RateLimiter` port with an in-memory adapter (one process) and a Redis adapter (shared by every
+worker, which the two-worker compose stack needs). If Redis is down, requests are allowed and the error is logged.
+Health probes are never limited. Responses carry `RateLimit-*` headers. Behind a load balancer, set uvicorn's
+`FORWARDED_ALLOW_IPS` to the proxy's addresses, or every request appears to come from the proxy and all clients
+share one quota.
+
+*Trade-off:* `verify()` is weak for JPEG, so a truncated JPEG can be stored; fully decoding
 every upload costs too much memory.
 
 **Testing.** Three tiers: unit tests against in-memory fakes, integration tests on real Postgres and local storage,
@@ -69,7 +81,9 @@ rejection), not just the happy path.
 - **Basic auth is a stopgap:** one shared credential, no per-caller identity. A real rollout would use OAuth2/OIDC or
   API keys.
 - **`GET /images` is unpaginated;** the `items` wrapper lets a cursor be added without a breaking change.
-- **No rate limiting.** It would sit behind a port (in memory locally, Redis in production) and at the gateway.
+- **Rate limits are keyed by client IP,** since the shared credential has no caller identity. Clients behind one
+  NAT share a quota. With real auth they would be keyed per caller. Fixed windows allow a burst of up to 2x at a
+  window edge.
 - **uuid7 ids** are time-ordered and index-friendly, but reveal roughly when an image was created.
 
 ## What I'd do next
@@ -77,7 +91,7 @@ rejection), not just the happy path.
 1. `nosniff`, CSP and `Cache-Control` on served bytes, plus a `sha256` ETag for 304s.
 2. Orphan cleanup and atomic local writes (temp file, then rename).
 3. RFC 9457 error responses with stable types, documented in OpenAPI.
-4. Streaming GET, rate limiting, observability (logs, request ids, metrics).
+4. Streaming GET, observability (logs, request ids, metrics).
 5. Run the S3 adapter against MinIO in CI.
 
 ## Project layout
@@ -85,7 +99,7 @@ rejection), not just the happy path.
 ```
 app/
   main.py, health/       app factory and probes
-  core/                  config, db, auth
+  core/                  config, db, auth, rate_limit/ (port, memory + Redis adapters)
   images/
     service.py           ImageService
     domain/              entities, validation, ports (storage + repository)
