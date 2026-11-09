@@ -51,18 +51,22 @@ make test
 make lint
 ```
 
-```bash
-curl -u admin:change-me -F file=@sample_data/red-square.png localhost:8001/images
-curl -u admin:change-me localhost:8001/images/<id> -o out.jpg
-```
+### Trying the API with Bruno
+
+The easiest way to exercise the API is the [Bruno](https://www.usebruno.com) collection in `bruno/`:
+
+1. Open the `bruno/` folder as a collection.
+2. Pick the `local` environment (or `docker` for `make up`) and set the `password` secret to match your `.env`.
+3. *Upload image* sends `sample_data/red-square.png` by default. Point it at another file in `sample_data/` to try a rejection (`not-an-image.txt` should return 422).
+4. Run *Upload image*, then *Get image* (it uses the returned id), or *List images*.
+
+The interactive docs at `/docs` also work.
 
 ### With Docker
 
 ```bash
 cp .env.example .env   # set the auth credentials
 make up                # builds the image, starts Postgres, runs migrations, waits until the API is ready
-curl localhost:8080/readyz
-curl -u admin:change-me -F file=@sample_data/red-square.png localhost:8080/images
 make logs              # follow the API logs
 make down
 ```
@@ -91,18 +95,11 @@ Note: the migrate job needs the auth variables too, because `alembic/env.py` loa
 
 Both are unauthenticated so probes don't need credentials, and they reveal nothing beyond "ok" or "error".
 
-Sample files live in `sample_data/` (regenerate with `make sample-data`; `not-an-image.txt` should be rejected with 422).
-
-A [Bruno](https://www.usebruno.com) collection lives in `bruno/` (open the folder as a collection, pick the `local` environment (or `docker` for `make up`),
-set the image path in *Upload image*, then run *Upload image* → *Get image*).
+Sample files live in `sample_data/` (regenerate with `make sample-data`). Use them from [Bruno](#trying-the-api-with-bruno).
 
 ## Auth
 
 All `/images` endpoints use HTTP Basic auth. Set `PROGIMAGE_AUTH_USERNAME` and `PROGIMAGE_AUTH_PASSWORD` (see `.env.example`; the app won't start without them).
-
-```bash
-curl -u admin:change-me -F file=@photo.jpg localhost:8001/images
-```
 
 **This is a temporary solution** (one shared credential pair). A real rollout would depend on who the caller is: end users via OIDC/OAuth2 login with JWT sessions, machine-to-machine via OAuth2 client credentials, API keys or mTLS, with per-caller identity and scopes. Basic auth should only be used over HTTPS. In Bruno, set the `password` secret in the `local` environment.
 
