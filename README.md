@@ -31,6 +31,7 @@ Python 3.14, FastAPI and uv.
 
 ```bash
 make setup
+make hooks   # once: git pre-commit hook (ruff + file hygiene)
 make db-up    # Postgres via docker compose (host port 5433)
 make migrate  # alembic upgrade head
 make api      # http://localhost:8001/docs
@@ -201,12 +202,13 @@ tests/                       class-based tests; each folder's tests get its mark
 
 | Job | Checks |
 | --- | --- |
-| `lint` | `uv.lock` is up to date, ruff (lint + format), strict mypy |
+| `lint` | the pre-commit hooks on every file, `uv.lock` is up to date, ruff (lint + format), strict mypy |
 | `migrations` | one Alembic head, a fresh database upgrades to head, models match migrations (`alembic check`), downgrade to base and back |
 | `test` | all three tiers against a Postgres 18 service container |
 | `docker` | `make up` builds the image and runs the migrate job, then a smoke test: health probes, upload and fetch an image |
 
-Locally: `make lint migrate-heads migrate-check test`. `make migrate-roundtrip` drops every table, so point
+The pre-commit hook (`make hooks`) runs the fast part of `lint` before each commit: ruff, `uv lock`, and whitespace,
+YAML/TOML, merge-marker and private-key checks. Locally: `make lint migrate-heads migrate-check test`. `make migrate-roundtrip` drops every table, so point
 `PROGIMAGE_DATABASE_URL` at a throwaway database before running it.
 
 ## How I worked

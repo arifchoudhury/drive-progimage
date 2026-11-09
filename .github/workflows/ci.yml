@@ -27,6 +27,8 @@ jobs:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
       - run: make setup
+      - name: Pre-commit hooks on every file (so --no-verify can't skip them)
+        run: uv run pre-commit run --all-files --show-diff-on-failure
       - run: make lint
 
   migrations:

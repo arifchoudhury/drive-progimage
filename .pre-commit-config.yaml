@@ -1,0 +1,32 @@
+# Fast checks only (about a second). mypy, tests and migration checks run in CI.
+# Install once with `make hooks`. CI runs these same hooks on every file.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.13.7  # keep in step with the Dockerfile and CI
+    hooks:
+      - id: uv-lock
+
+  # Local hooks so ruff is the version locked in uv.lock, the same one `make lint` and CI run.
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix --force-exclude
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]

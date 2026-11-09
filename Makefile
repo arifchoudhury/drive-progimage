@@ -1,7 +1,11 @@
-.PHONY: setup up down logs docker-build db-up db-down db-reset migrate migration migrate-down migrate-current migrate-history migrate-check migrate-heads migrate-roundtrip sample-data api lint format test test-unit test-integration test-e2e
+.PHONY: setup hooks up down logs docker-build db-up db-down db-reset migrate migration migrate-down migrate-current migrate-history migrate-check migrate-heads migrate-roundtrip sample-data api lint format test test-unit test-integration test-e2e
 
 setup:
 	uv sync --all-extras
+
+# One-time: install the git pre-commit hook (ruff + file hygiene, see .pre-commit-config.yaml).
+hooks:
+	uv run pre-commit install
 
 # The whole stack in Docker: Postgres, a one-shot migration, then the API on http://localhost:8080 (API_PORT).
 up:
