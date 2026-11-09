@@ -2,118 +2,94 @@
 
 [![CI](https://github.com/arifchoudhury/drive-progimage/actions/workflows/ci.yml/badge.svg)](https://github.com/arifchoudhury/drive-progimage/actions/workflows/ci.yml)
 
-An API-only image storage service: upload an image, get an id back, fetch the image with that id.
+Image storage API. Upload an image, get an id, fetch it by id.
 Python 3.14, FastAPI, Postgres, Redis, uv.
 
 ```
-POST /images        multipart field "file"  → 201 {"id": "..."}
-GET  /images/{id}   → the image bytes, with the right Content-Type and locked-down, cacheable headers
-GET  /images        → {"items": [...metadata...]}, newest first
-GET  /healthz       liveness     GET /readyz   readiness (both unauthenticated)
+POST /images        upload (multipart field "file") → 201 {"id": "..."}
+GET  /images/{id}   the image
+GET  /images        all images' metadata, newest first
+GET  /healthz       liveness
+GET  /readyz        readiness
 ```
 
 ## Run it
 
-```bash
-cp .env.example .env   # set the auth credentials
-make up                # Docker: Postgres, Redis, migrations, API on :8080
-```
+1. `cp .env.example .env` and set a password.
+2. Run **one** of:
+   - `make local`: API on your machine with reload, Postgres and Redis in Docker.
+   - `make docker`: everything in Docker.
 
-Or locally: `make setup db-up migrate api` (API on :8001, docs at `/docs`). Then `make test` and `make lint`.
+   Both start with an empty database. API on http://localhost:8000, docs at `/docs`. `make down` to stop.
+3. Open `bruno/` in [Bruno](https://www.usebruno.com), pick the **dev** environment, set the password, then run:
+   1. **Upload image** (`sample_data/red-square.png`; try `not-an-image.txt` for a 422)
+   2. **List images**
+   3. **Get image**
 
-**Try it with [Bruno](https://www.usebruno.com):** open the `bruno/` folder as a collection, pick the `local` (or
-`docker`) environment, set the `password` secret to match your `.env`, then run *Upload image* and *Get image*.
-Point the upload at `sample_data/not-an-image.txt` to see a rejection.
+Tests: `make services`, then `make test`. Lint: `make lint`.
 
 ## How it maps to the brief
 
-**Packaging and environments.** A multi-stage, non-root Docker image and a compose stack (Postgres, a one-shot
-migration job, the API). Config comes from environment variables, and the app refuses to start without credentials.
-`/healthz` and `/readyz` serve as container and orchestrator probes. CI builds the image and smoke-tests it.
+**Packaging**
+- Multi-stage, non-root Docker image. Compose runs Postgres, Redis, migrations and the API.
+- Config from env vars. Won't start without credentials.
+- Health checks: `/healthz`, `/readyz`.
+- CI builds and smoke-tests the image.
 
-**Concurrency and load.** Endpoints are sync `def`, run by FastAPI's threadpool, because Pillow, boto3 and SQLAlchemy
-all block. Scale with `WEB_CONCURRENCY` workers and the DB pool. A request body is capped before it is parsed, which
-bounds memory per request. GET currently buffers the whole image (fine under the 10 MiB cap; streaming is next).
+**Load**
+- Sync endpoints on a threadpool (Pillow and SQLAlchemy block).
+- Scale with `WEB_CONCURRENCY` and the DB pool.
+- Oversized bodies rejected before parsing.
 
-**Storage abstraction.** The service depends on two ports, `ImageStorage` and `ImageRepository`, each with two
-adapters (local disk and S3; in-memory and Postgres). Metadata lives in Postgres and bytes behind the storage port, so
-switching storage needs no schema change. Dependencies point inwards and only `api/dependencies.py` knows the
-concrete adapters. The S3 adapter has only been run against a fake client.
+**Storage**
+- Storage behind an interface: local disk or S3 (S3 only tested against a fake).
+- Metadata in Postgres, bytes in storage. Swapping storage needs no schema change.
 
-**Errors and guarantees.**
+**Responses**
+- `201` stored · `401` bad login · `404` not found · `413` too large
+- `415` unsupported format · `422` not an image · `429` rate limited · `503` not ready
+- Rejected uploads store nothing. Images never change.
 
-| status | when |
-|---|---|
-| `201` | stored; the id is returned only after both bytes and metadata are written |
-| `401` | missing or wrong credentials |
-| `404` | no such image, or its bytes are gone |
-| `429` | rate limit spent for this window; `Retry-After` says when to retry |
-| `413` / `415` / `422` | too large / real image but not JPEG, PNG, GIF or WebP / not a valid image or too many pixels |
-| `503` | `/readyz` only: database or storage unavailable |
+**Security**
+- Format detected from the bytes, not the filename or Content-Type. JPEG, PNG, GIF, WebP only.
+- Pixel limit against decompression bombs.
+- Generated storage names, no path traversal.
+- Constant-time password check.
+- Download headers stop browsers treating images as anything else.
 
-A rejected upload stores nothing, and images never change once stored. Errors are FastAPI's `{"detail": ...}` for now.
+**Rate limiting**
+- 30 uploads / 600 reads per minute per client, configurable.
+- Counted in Redis, shared across workers. Fails open if Redis is down.
+- Per-IP flood protection belongs at the load balancer.
 
-**Security, validation, resource protection.** Pillow decides the format from the bytes, against an allowlist; the
-client's Content-Type and filename are ignored. Checks run cheapest first: size, format, pixel count (decompression
-bombs), then `verify()`. The size limit is enforced at the edge (before auth and parsing) and again in the domain.
-Storage keys are generated (`<uuid7>.<ext>`) and local paths can't escape the storage root. Basic auth uses a
-constant-time compare. Served images carry `nosniff`, `CSP: default-src 'none'; sandbox` and a generated
-`Content-Disposition` filename, so a browser only ever treats them as images, and `Cache-Control: private,
-immutable` since they never change.
+**Testing**
+- Unit (in-memory fakes), integration (real Postgres, Redis, disk), end-to-end (live server).
+- Every storage and database adapter runs the same contract tests.
 
-**Rate limiting** is at two layers. Coarse per-IP flood protection belongs at the gateway or ingress, which is
-deployment config and not built here. The app enforces per-client quotas over a 60-second window: 30 writes and 600
-reads per minute by default, set by `PROGIMAGE_RATE_LIMIT_*`. A limit applies before auth, so failed logins count
-too. It sits behind a `RateLimiter` port with an in-memory adapter (one process) and a Redis adapter (shared by every
-worker, which the two-worker compose stack needs). If Redis is down, requests are allowed and the error is logged.
-Health probes are never limited. Responses carry `RateLimit-*` headers. Behind a load balancer, set uvicorn's
-`FORWARDED_ALLOW_IPS` to the proxy's addresses, or every request appears to come from the proxy and all clients
-share one quota.
+## Trade-offs and next steps
 
-*Trade-off:* `verify()` is weak for JPEG, so a truncated JPEG can be stored; fully decoding
-every upload costs too much memory.
+- Basic auth with one shared login. A real setup would use OAuth or API keys.
+- No paging on `GET /images` yet.
+- Rate limits are per IP, so clients behind one NAT share a limit.
+- Truncated JPEGs can get through; fully decoding every upload costs too much memory.
+- Next: caching, depending on the consumer. Through a CDN, let the CDN cache images (they're `private` today).
+  Called directly, add `ETag`s so clients get a 304.
 
-**Testing.** Three tiers: unit tests against in-memory fakes, integration tests on real Postgres and local storage,
-and end-to-end tests against a live uvicorn process. Contract suites run every storage and repository adapter through
-the same behaviour. Failure paths are covered (401, 404, 413, 415, 422, a missing blob, nothing stored after a
-rejection), not just the happy path.
-
-## Trade-offs and known gaps
-
-- **Basic auth is a stopgap:** one shared credential, no per-caller identity. A real rollout would use OAuth2/OIDC or
-  API keys.
-- **`GET /images` is unpaginated;** the `items` wrapper lets a cursor be added without a breaking change.
-- **Rate limits are keyed by client IP,** since the shared credential has no caller identity. Clients behind one
-  NAT share a quota. With real auth they would be keyed per caller. Fixed windows allow a burst of up to 2x at a
-  window edge.
-- **uuid7 ids** are time-ordered and index-friendly, but reveal roughly when an image was created.
-
-## What I'd do next
-
-1. Conditional GETs: store a `sha256` per upload as a strong `ETag` and answer `If-None-Match` with a 304 from the
-   database row, without reading storage. Deferred because nothing in front of the API caches yet; in production a
-   CDN would absorb most repeat reads.
-2. Orphan cleanup and atomic local writes (temp file, then rename).
-3. RFC 9457 error responses with stable types, documented in OpenAPI.
-4. Streaming GET, observability (logs, request ids, metrics).
-5. Run the S3 adapter against MinIO in CI.
-
-## Project layout
+## Layout
 
 ```
 app/
-  main.py, health/       app factory and probes
-  core/                  config, db, auth, rate_limit/ (port, memory + Redis adapters)
+  core/          config, db, auth, rate limiting
+  health/        probes
   images/
-    service.py           ImageService
-    domain/              entities, validation, ports (storage + repository)
-    infrastructure/      storage/ (local, s3), database/ (SQLAlchemy)
-    api/                 router, body-limit middleware, wiring
-alembic/                 migrations (`make migration m="..."`, `make migrate-check`)
-tests/                   unit/, integration/, e2e/
+    domain/      entities, validation, interfaces
+    infrastructure/  storage (local, s3), database
+    api/         routes
+alembic/         migrations
+tests/           unit/, integration/, e2e/
 ```
 
 ## How I worked
 
-I chose the scope, architecture and trade-offs. I used Claude Code as a pair programmer for implementation, test
-scaffolding and review against the brief, so commits carry a `Co-Authored-By` trailer. I reviewed every change and can walk through any part of it.
+I chose the scope, design and trade-offs. Claude Code helped with implementation, tests and review, so commits carry
+a `Co-Authored-By` trailer. I reviewed every change.

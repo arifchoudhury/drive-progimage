@@ -1,4 +1,4 @@
-.PHONY: setup hooks up down logs docker-build db-up db-down db-reset migrate migration migrate-down migrate-current migrate-history migrate-check migrate-heads migrate-roundtrip sample-data api lint format test test-unit test-integration test-e2e
+.PHONY: setup hooks local docker services down logs clean migrate migration migrate-down migrate-current migrate-history migrate-check migrate-heads migrate-roundtrip sample-data lint format test test-unit test-integration test-e2e
 
 setup:
 	uv sync --all-extras
@@ -7,9 +7,20 @@ setup:
 hooks:
 	uv run pre-commit install
 
-# The whole stack in Docker: Postgres, a one-shot migration, then the API on http://localhost:8080 (API_PORT).
-up:
+# Both start from an empty database and image store every time (see `clean`), and serve the API on the same port.
+export API_PORT ?= 8000
+
+# Run on the host: Postgres + Redis in Docker, migrations, then the API with reload on http://localhost:$(API_PORT).
+local: setup clean services migrate
+	uv run uvicorn --factory app.main:create_app --reload --port $(API_PORT)
+
+# The whole stack in Docker: Postgres, Redis, a one-shot migration, then the API on http://localhost:$(API_PORT).
+docker: clean
 	docker compose up -d --build --wait api
+
+# Backing services only (for `make test`): Postgres, plus Redis for the rate limiter.
+services:
+	docker compose up -d --wait db redis
 
 down:
 	docker compose down
@@ -17,21 +28,10 @@ down:
 logs:
 	docker compose logs -f api
 
-docker-build:
-	docker compose build
-
-# Backing services for local runs and tests: Postgres, plus Redis for the rate limiter.
-db-up:
-	docker compose up -d --wait db redis
-
-db-down:
-	docker compose down
-
-# DESTROYS local dev data: drops the Postgres volume, restarts it and re-applies all migrations.
-db-reset:
-	docker compose down -v
-	docker compose up -d --wait db redis
-	uv run alembic upgrade head
+# DESTROYS dev data: stops the stack, drops its volumes (Postgres, Docker image store) and the host image store.
+clean:
+	docker compose down -v --remove-orphans
+	rm -rf local_storage
 
 migrate:
 	uv run alembic upgrade head
@@ -67,9 +67,6 @@ migration:
 
 sample-data:
 	uv run python scripts/generate_sample_data.py
-
-api:
-	uv run uvicorn --factory app.main:create_app --reload --port 8001
 
 lint:
 	uv run ruff check .

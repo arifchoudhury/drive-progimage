@@ -80,7 +80,6 @@ def get_image(image_id: uuid.UUID, service: ImageServiceDep, response: Response)
         image: ImageContent = service.get(image_id)
     except ImageNotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Image not found") from exc
-    # A returned Response skips FastAPI's merge of dependency-set headers (RateLimit-*), so carry them over.
     # The download name is generated, never the client's filename.
     headers: dict[str, str] = {
         **response.headers,

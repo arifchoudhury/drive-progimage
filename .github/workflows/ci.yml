@@ -107,12 +107,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      API: http://localhost:8080
+      API: http://localhost:8000
     steps:
       - uses: actions/checkout@v7
       - run: cp .env.example .env
       - name: Build and start the stack (migrate job, then api until /readyz passes)
-        run: make up
+        run: make docker
       - name: Smoke test
         run: |
           set -euo pipefail
