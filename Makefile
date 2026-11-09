@@ -1,4 +1,4 @@
-.PHONY: setup up down logs docker-build db-up db-down db-reset migrate migration migrate-down migrate-current migrate-history migrate-check sample-data api lint format test test-unit test-integration test-e2e
+.PHONY: setup up down logs docker-build db-up db-down db-reset migrate migration migrate-down migrate-current migrate-history migrate-check migrate-heads migrate-roundtrip sample-data api lint format test test-unit test-integration test-e2e
 
 setup:
 	uv sync --all-extras
@@ -43,6 +43,17 @@ migrate-history:
 # Fails if the models and the migrations have drifted apart (a model change without a migration).
 migrate-check:
 	uv run alembic check
+
+# Fails unless the revision history has exactly one head (two branches that each added a migration).
+migrate-heads:
+	@heads=$$(uv run alembic heads | grep -c .); \
+	if [ "$$heads" -ne 1 ]; then echo "expected 1 alembic head, found $$heads:"; uv run alembic heads; exit 1; fi
+
+# Every downgrade() must work and the schema must rebuild from nothing. DESTROYS data in the target database.
+migrate-roundtrip:
+	uv run alembic upgrade head
+	uv run alembic downgrade base
+	uv run alembic upgrade head
 
 # usage: make migration m="add sha256 column"
 migration:
