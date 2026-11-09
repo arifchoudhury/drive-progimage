@@ -12,7 +12,9 @@ from tests.fake_s3 import FakeS3Client
 
 
 def _settings(**kwargs: object) -> Settings:
-    return Settings(auth_username="u", auth_password="p", database_url="postgresql+psycopg://x/y", **kwargs)  # type: ignore[arg-type]
+    return Settings.model_validate(
+        {"auth_username": "u", "auth_password": "p", "database_url": "postgresql+psycopg://x/y"} | kwargs
+    )
 
 
 @pytest.fixture(autouse=True)

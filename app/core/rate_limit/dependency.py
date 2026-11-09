@@ -6,7 +6,7 @@ from fastapi import Depends, HTTPException, Request, Response, status
 
 from app.core.config import Settings, get_settings
 from app.core.rate_limit.memory import InMemoryRateLimiter
-from app.core.rate_limit.ports import RateLimiter
+from app.core.rate_limit.ports import RateLimiter, RateLimitResult
 from app.core.rate_limit.redis import RedisRateLimiter
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ def get_rate_limiter() -> RateLimiter:
 
     Tests swap it via `app.dependency_overrides[get_rate_limiter]`.
     """
-    settings = get_settings()
+    settings: Settings = get_settings()
     match settings.rate_limit_backend:
         case "memory":
             return InMemoryRateLimiter()
@@ -48,10 +48,10 @@ def enforce_rate_limit(
         scope, limit = "write", settings.rate_limit_write_per_minute
     else:
         scope, limit = "read", settings.rate_limit_read_per_minute
-    client = request.client.host if request.client else "unknown"
+    client: str = request.client.host if request.client else "unknown"
 
     try:
-        result = limiter.hit(f"{scope}:{client}", limit, WINDOW_SECONDS)
+        result: RateLimitResult = limiter.hit(f"{scope}:{client}", limit, WINDOW_SECONDS)
     except Exception:
         logger.exception("rate limiter unavailable; allowing the request")
         return

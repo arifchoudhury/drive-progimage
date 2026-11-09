@@ -4,7 +4,7 @@ from collections.abc import Iterator
 import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
-from starlette.types import Receive, Scope, Send
+from starlette.types import Message, Receive, Scope, Send
 
 from app.images.api.body_limit import MaxBodySizeMiddleware
 
@@ -65,9 +65,13 @@ class TestMaxBodySizeMiddleware:
             seen.append(scope["type"])
 
         middleware = MaxBodySizeMiddleware(inner, max_bytes=LIMIT)
-        asyncio.run(middleware({"type": "lifespan"}, _never, _never))  # type: ignore[arg-type]
+        asyncio.run(middleware({"type": "lifespan"}, _never_receive, _never_send))
         assert seen == ["lifespan"]
 
 
-async def _never(*_: object) -> None:
+async def _never_receive() -> Message:
+    raise AssertionError("not called")
+
+
+async def _never_send(message: Message) -> None:
     raise AssertionError("not called")

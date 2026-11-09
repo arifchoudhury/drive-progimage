@@ -20,7 +20,7 @@ class InMemoryRateLimiter:
         self._windows: dict[str, tuple[float, int]] = {}  # key -> (window start, count)
 
     def hit(self, key: str, limit: int, window_seconds: int) -> RateLimitResult:
-        now = self._clock()
+        now: float = self._clock()
         with self._lock:
             start, count = self._windows.get(key, (now, 0))
             if now - start >= window_seconds:

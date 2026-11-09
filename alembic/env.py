@@ -10,12 +10,8 @@ from app.core.db import Base
 # Miss one and autogenerate sees the table as deleted (and `alembic check` reports drift).
 from app.images.infrastructure.database import models as _images  # noqa: F401
 
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name, disable_existing_loggers=False)
 

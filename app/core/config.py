@@ -20,14 +20,13 @@ class Settings(BaseSettings):
     max_upload_bytes: int = Field(default=10 * 1024 * 1024, gt=0)
     max_image_pixels: int = Field(default=40_000_000, gt=0)  # width x height, read from the header
 
-    # PostgreSQL system of record for image metadata (SQLAlchemy URL, psycopg 3 driver). Required, no default.
-    # e.g. postgresql+psycopg://progimage:progimage@localhost:5433/progimage  (see docker-compose.yml)
+    # PostgreSQL metadata store (SQLAlchemy URL, psycopg 3 driver). Required.
     database_url: str
 
-    # "s3" backend settings. Placeholders only for now; the S3 backend is not wired to a real bucket.
+    # "s3" backend settings. Only tested against a fake client so far.
     s3_bucket: str | None = None
     s3_region: str | None = None
-    s3_endpoint_url: str | None = None  # e.g. localstack / minio
+    s3_endpoint_url: str | None = None
     s3_prefix: str = ""
     aws_access_key_id: str | None = None
     aws_secret_access_key: SecretStr | None = None
@@ -37,14 +36,11 @@ class Settings(BaseSettings):
     # more than one worker or replica needs "redis" for one shared count.
     rate_limit_enabled: bool = True
     rate_limit_backend: Literal["memory", "redis"] = "memory"
-    redis_url: str | None = None  # e.g. redis://localhost:6380/0  (see docker-compose.yml)
+    redis_url: str | None = None
     rate_limit_write_per_minute: int = Field(default=30, gt=0)  # uploads: decoding and storing is the costly path
     rate_limit_read_per_minute: int = Field(default=600, gt=0)
 
-    # TEMPORARY: a single shared credential pair for HTTP Basic auth, good enough for this assessment only.
-    # A real rollout would depend on who the caller is: end users via OIDC/OAuth2 login (JWT sessions),
-    # machine-to-machine via OAuth2 client credentials / API keys / mTLS, with per-caller identity and scopes.
-    # Required (no default) so the app fails fast rather than running with a guessable password.
+    # TEMPORARY shared Basic-auth credential (see app/core/auth.py). Required, so the app fails fast without it.
     auth_username: str
     auth_password: SecretStr
 

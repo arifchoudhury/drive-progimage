@@ -1,11 +1,17 @@
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from typing import Any, cast
 
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
 from app.core.db import get_session
 from app.images.api.dependencies import get_storage
 from tests.fakes import InMemoryStorage
+
+
+def _overrides(client: TestClient) -> dict[Callable[..., Any], Callable[..., Any]]:
+    return cast(FastAPI, client.app).dependency_overrides
 
 
 class _UnreachableDatabase:
@@ -26,7 +32,7 @@ class TestLiveness:
         assert response.json() == {"status": "ok"}
 
     def test_stays_ok_when_dependencies_are_down(self, anonymous_client: TestClient) -> None:
-        anonymous_client.app.dependency_overrides[get_session] = _unreachable_session  # type: ignore[attr-defined]
+        _overrides(anonymous_client)[get_session] = _unreachable_session
         assert anonymous_client.get("/healthz").status_code == 200
 
 
@@ -37,17 +43,17 @@ class TestReadiness:
         assert response.json() == {"status": "ready", "checks": {"database": "ok", "storage": "ok"}}
 
     def test_is_503_when_storage_fails(self, anonymous_client: TestClient) -> None:
-        anonymous_client.app.dependency_overrides[get_storage] = lambda: InMemoryStorage(healthy=False)  # type: ignore[attr-defined]
+        _overrides(anonymous_client)[get_storage] = lambda: InMemoryStorage(healthy=False)
         response = anonymous_client.get("/readyz")
         assert response.status_code == 503
         assert response.json() == {"status": "not ready", "checks": {"database": "ok", "storage": "error"}}
 
     def test_is_503_when_database_fails(self, anonymous_client: TestClient) -> None:
-        anonymous_client.app.dependency_overrides[get_session] = _unreachable_session  # type: ignore[attr-defined]
+        _overrides(anonymous_client)[get_session] = _unreachable_session
         response = anonymous_client.get("/readyz")
         assert response.status_code == 503
         assert response.json() == {"status": "not ready", "checks": {"database": "error", "storage": "ok"}}
 
     def test_does_not_leak_error_details(self, anonymous_client: TestClient) -> None:
-        anonymous_client.app.dependency_overrides[get_session] = _unreachable_session  # type: ignore[attr-defined]
+        _overrides(anonymous_client)[get_session] = _unreachable_session
         assert "connection refused" not in anonymous_client.get("/readyz").text

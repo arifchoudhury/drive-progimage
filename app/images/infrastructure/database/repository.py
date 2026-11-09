@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import ScalarResult, select
 from sqlalchemy.orm import Session
 
 from app.images.domain.entities import Image
@@ -18,10 +18,9 @@ class SqlAlchemyImageRepository:
         self._session.commit()
 
     def get(self, image_id: uuid.UUID) -> Image | None:
-        row = self._session.get(ImageRow, image_id)
+        row: ImageRow | None = self._session.get(ImageRow, image_id)
         return Image.model_validate(row, from_attributes=True) if row else None
 
     def list(self) -> list[Image]:
-        # TODO(pagination): returns every row; add limit + keyset cursor on `id` (see ImageRepository.list).
-        rows = self._session.scalars(select(ImageRow).order_by(ImageRow.id.desc()))
+        rows: ScalarResult[ImageRow] = self._session.scalars(select(ImageRow).order_by(ImageRow.id.desc()))
         return [Image.model_validate(row, from_attributes=True) for row in rows]

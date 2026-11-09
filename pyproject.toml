@@ -59,7 +59,7 @@ known-third-party = ["alembic"]
 
 [tool.mypy]
 python_version = "3.14"
-packages = ["app"]
+files = ["app", "tests", "scripts", "alembic"]
 explicit_package_bases = true
 strict = true
 plugins = ["pydantic.mypy"]

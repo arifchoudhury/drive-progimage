@@ -15,6 +15,7 @@ from app.images.domain.exceptions import (
     UnsupportedImageFormatError,
 )
 from app.images.domain.validation import DEFAULT_ALLOWED_FORMATS
+from app.images.domain.values import ImageContent
 
 # Rate limit first, so failed logins count too (it also caps password guessing). Then the TEMPORARY
 # shared-credential Basic auth on every image endpoint; see app/core/auth.py.
@@ -60,7 +61,7 @@ def _rejection_to_http(exc: ImageRejectedError) -> HTTPException:
 def upload_image(file: Annotated[UploadFile, File()], service: ImageServiceDep) -> ImageUploadResponse:
     # Bounded: MaxBodySizeMiddleware has already refused any request body over the limit.
     try:
-        image_id = service.upload(file.file.read(), file.filename)
+        image_id: uuid.UUID = service.upload(file.file.read(), file.filename)
     except ImageRejectedError as exc:
         raise _rejection_to_http(exc) from exc
     return ImageUploadResponse(id=image_id)
@@ -68,7 +69,6 @@ def upload_image(file: Annotated[UploadFile, File()], service: ImageServiceDep) 
 
 @router.get("")
 def list_images(service: ImageServiceDep) -> ImageListResponse:
-    # TODO(pagination): returns every image. Add `limit` and `cursor` query params, then a `next_cursor` field.
     return ImageListResponse(items=[ImageSummary.model_validate(i, from_attributes=True) for i in service.list()])
 
 
@@ -77,12 +77,12 @@ def list_images(service: ImageServiceDep) -> ImageListResponse:
 )
 def get_image(image_id: uuid.UUID, service: ImageServiceDep, response: Response) -> Response:
     try:
-        image = service.get(image_id)
+        image: ImageContent = service.get(image_id)
     except ImageNotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Image not found") from exc
     # A returned Response skips FastAPI's merge of dependency-set headers (RateLimit-*), so carry them over.
     # The download name is generated, never the client's filename.
-    headers = {
+    headers: dict[str, str] = {
         **response.headers,
         **_SERVE_HEADERS,
         "Content-Disposition": f'inline; filename="{image_id}.{image.extension}"',

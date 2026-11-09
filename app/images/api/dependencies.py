@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.db import get_session
 from app.images.domain.ports import ImageRepository, ImageStorage
 from app.images.domain.validation import ImageValidator
@@ -20,7 +20,7 @@ def get_storage() -> ImageStorage:
     Adding a backend = implement the ImageStorage protocol + add a case here.
     Tests swap it via `app.dependency_overrides[get_storage]`.
     """
-    settings = get_settings()
+    settings: Settings = get_settings()
     match settings.storage_backend:
         case "local":
             return LocalImageStorage(settings.storage_dir)
@@ -40,7 +40,7 @@ def get_storage() -> ImageStorage:
 @lru_cache
 def get_image_validator() -> ImageValidator:
     """The upload policy, built once per process from settings."""
-    settings = get_settings()
+    settings: Settings = get_settings()
     return ImageValidator(max_bytes=settings.max_upload_bytes, max_pixels=settings.max_image_pixels)
 
 

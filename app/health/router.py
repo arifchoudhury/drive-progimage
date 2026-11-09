@@ -49,11 +49,11 @@ def readiness(
     storage: Annotated[ImageStorage, Depends(get_storage)],
 ) -> ReadinessResponse:
     """Every dependency a request needs is reachable: the database answers and storage accepts writes."""
-    checks = {
+    checks: dict[str, CheckResult] = {
         "database": _run("database", lambda: session.execute(text("SELECT 1"))),
         "storage": _run("storage", storage.check),
     }
-    ready = all(result == "ok" for result in checks.values())
+    ready: bool = all(result == "ok" for result in checks.values())
     if not ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return ReadinessResponse(status="ready" if ready else "not ready", checks=checks)

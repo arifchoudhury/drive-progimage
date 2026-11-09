@@ -1,4 +1,5 @@
 import mimetypes
+from typing import Any
 
 
 class S3ImageStorage:
@@ -30,19 +31,18 @@ class S3ImageStorage:
         self._prefix = prefix
 
     def save(self, key: str, data: bytes) -> None:
-        content_type = mimetypes.guess_type(key)[0] or "application/octet-stream"
+        content_type: str = mimetypes.guess_type(key)[0] or "application/octet-stream"
         self._client.put_object(Bucket=self._bucket, Key=self._key(key), Body=data, ContentType=content_type)
 
     def load(self, key: str) -> bytes | None:
         try:
-            response = self._client.get_object(Bucket=self._bucket, Key=self._key(key))
+            response: dict[str, Any] = self._client.get_object(Bucket=self._bucket, Key=self._key(key))
         except self._client.exceptions.NoSuchKey:
             return None
         body: bytes = response["Body"].read()
         return body
 
     def check(self) -> None:
-        # Raises if the bucket is missing or the credentials can't reach it.
         self._client.head_bucket(Bucket=self._bucket)
 
     def _key(self, key: str) -> str:

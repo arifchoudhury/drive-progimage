@@ -1,3 +1,5 @@
+from typing import cast
+
 from app.core.rate_limit.ports import RateLimitResult
 
 
@@ -21,5 +23,5 @@ class RedisRateLimiter:
         pipe.incr(name)
         pipe.expire(name, window_seconds, nx=True)
         pipe.ttl(name)
-        count, _, ttl = pipe.execute()
-        return RateLimitResult.from_count(int(count), limit, ttl if ttl > 0 else window_seconds)
+        count, _, ttl = cast(tuple[int, bool, int], pipe.execute())
+        return RateLimitResult.from_count(count, limit, ttl if ttl > 0 else window_seconds)
