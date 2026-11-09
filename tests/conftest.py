@@ -52,7 +52,7 @@ def fake_s3(monkeypatch: pytest.MonkeyPatch) -> FakeS3Client:
     return fake
 
 
-# A dedicated database on the docker-compose Postgres (`make db-up`), so tests never touch dev data.
+# A dedicated database on the docker-compose Postgres (`make services`), so tests never touch dev data.
 TEST_DATABASE_URL = os.environ.get(
     "PROGIMAGE_TEST_DATABASE_URL", "postgresql+psycopg://progimage:progimage@localhost:5433/progimage_test"
 )

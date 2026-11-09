@@ -60,7 +60,7 @@ services:
       <<: *app-env
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
     ports:
-      - "${API_PORT:-8080}:8000"  # host port is configurable; `make api` (no Docker) uses 8001
+      - "${API_PORT:-8000}:8000"  # same host port as `make local`; override with API_PORT
     volumes:
       - images:/data/images
     depends_on:

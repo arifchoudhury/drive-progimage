@@ -6,7 +6,7 @@ import pytest
 
 from app.core.rate_limit import InMemoryRateLimiter, RateLimiter, RedisRateLimiter
 
-# The docker-compose Redis (`make db-up`), on a database number dev runs don't use.
+# The docker-compose Redis (`make services`), on a database number dev runs don't use.
 TEST_REDIS_URL = os.environ.get("PROGIMAGE_TEST_REDIS_URL", "redis://localhost:6380/15")
 
 
@@ -15,7 +15,7 @@ def _redis() -> RateLimiter:
     try:
         redis.Redis.from_url(TEST_REDIS_URL, socket_connect_timeout=0.5).ping()
     except redis.ConnectionError:
-        pytest.skip(f"Redis not reachable at {TEST_REDIS_URL} (run `make db-up`)")
+        pytest.skip(f"Redis not reachable at {TEST_REDIS_URL} (run `make services`)")
     return RedisRateLimiter(TEST_REDIS_URL, prefix=f"test:{uuid.uuid4()}:")  # fresh keys per test
 
 
