@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from starlette.types import Receive, Scope, Send
 
-from app.core.body_limit import MaxBodySizeMiddleware
+from app.images.api.body_limit import MaxBodySizeMiddleware
 
 LIMIT = 100
 

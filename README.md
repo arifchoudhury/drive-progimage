@@ -60,7 +60,7 @@ Content-Type and filename are ignored.
 
 The size limit is enforced twice, on purpose:
 
-- **At the edge**, `MaxBodySizeMiddleware` (`app/core/body_limit.py`) refuses an oversized request body with 413
+- **At the edge**, `MaxBodySizeMiddleware` (`app/images/api/body_limit.py`) refuses an oversized request body with 413
   before FastAPI parses the multipart form. It checks `Content-Length` up front and counts bytes as they arrive,
   so chunked uploads are caught too. This is what protects memory and disk; by the time a handler sees the file,
   the whole body has already been read. It runs before auth, so anonymous clients can't make us buffer either.
@@ -121,7 +121,6 @@ app/
   main.py                    app factory (`uvicorn --factory app.main:create_app`)
   core/                      shared plumbing
     config.py                settings
-    body_limit.py            MaxBodySizeMiddleware: 413 before the body is parsed
     db.py                    engine / session factory, declarative base
     auth.py                  HTTP Basic auth (temporary)
   images/
@@ -137,6 +136,7 @@ app/
       database/              ImageRow (the `images` table) + SqlAlchemyImageRepository
     api/
       router.py              HTTP endpoints
+      body_limit.py          MaxBodySizeMiddleware: 413 before the body is parsed
       schemas.py             response models
       dependencies.py        wires ImageService -> ImageStorage + ImageRepository + ImageValidator via FastAPI Depends
 alembic/                     Alembic env + versions/ (env.py takes the URL from PROGIMAGE_DATABASE_URL; imports every feature's ORM models)
