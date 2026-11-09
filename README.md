@@ -6,12 +6,14 @@ An API-only image storage service: upload an image, get back an id, then retriev
 POST /images        multipart/form-data, field "file"  → 201 {"id": "..."}
 GET  /images/{id}   → the image bytes, with the correct Content-Type
 GET  /images        → 200 {"items": [{id, original_filename, content_type, size_bytes, created_at}, ...]}, newest first
+GET  /healthz       → 200 liveness (no auth)
+GET  /readyz        → 200, or 503 naming the failing dependency (no auth)
 ```
 
 | status | when |
 |---|---|
 | `201` | upload stored; body is `{"id": "<uuid7>"}` |
-| `401` | missing or wrong credentials (all endpoints) |
+| `401` | missing or wrong credentials (every `/images` endpoint) |
 | `404` | no image with that id (or its bytes are gone) |
 | `413` | request body or image over `PROGIMAGE_MAX_UPLOAD_BYTES` (default 10 MiB) |
 | `415` | a real image, but not JPEG, PNG, GIF or WebP |
@@ -39,9 +41,44 @@ curl -u admin:change-me -F file=@sample_data/red-square.png localhost:8001/image
 curl -u admin:change-me localhost:8001/images/<id> -o out.jpg
 ```
 
+### With Docker
+
+```bash
+cp .env.example .env   # set the auth credentials
+make up                # builds the image, starts Postgres, runs migrations, waits until the API is ready
+curl localhost:8080/readyz
+curl -u admin:change-me -F file=@sample_data/red-square.png localhost:8080/images
+make logs              # follow the API logs
+make down
+```
+
+`make up` is `docker compose up -d --build --wait api`. The stack is three services:
+
+- `db`: Postgres 18, published on host port 5433 for local (non-Docker) runs and the test suite.
+- `migrate`: a one-shot `alembic upgrade head`, run from the same image. The API starts only after it exits 0.
+- `api`: uvicorn as a non-root user on container port 8000, published on `API_PORT` (default 8080). Blobs go to the
+  `images` volume. `WEB_CONCURRENCY` (default 2) sets the number of workers.
+
+The image is multi-stage: uv installs the locked runtime dependencies (including the `s3` extra, so one image runs
+either backend) into a venv, and a slim runtime stage copies just that venv and the code. Config comes from `.env`
+plus compose overrides for the in-network database URL and the storage path.
+
+Note: the migrate job needs the auth variables too, because `alembic/env.py` loads the full `Settings`.
+
+### Health checks
+
+- `GET /healthz` (liveness) does no I/O: if it answers, the process is alive. The Dockerfile `HEALTHCHECK` uses it,
+  so a slow database never gets the container restarted.
+- `GET /readyz` (readiness) runs `SELECT 1` and `ImageStorage.check()` (a probe-file write for local storage,
+  `HeadBucket` for S3). It returns 503 with `{"checks": {"database": "error", ...}}` when either fails, with the
+  details only in the logs. Compose's `api` healthcheck and an orchestrator's readiness probe use this one. A
+  5-second Postgres connect timeout keeps it from hanging when the database is unreachable.
+
+Both are unauthenticated so probes don't need credentials, and they reveal nothing beyond "ok" or "error".
+
 Sample files live in `sample_data/` (regenerate with `make sample-data`; `not-an-image.txt` should be rejected with 422).
 
-A [Bruno](https://www.usebruno.com) collection lives in `bruno/` (open the folder as a collection, pick the `local` environment,
+A [Bruno](https://www.usebruno.com) collection lives in `bruno/` (open the folder as a collection, pick the `local` environment (or `docker` for `make up`),
 set the image path in *Upload image*, then run *Upload image* → *Get image*).
 
 ## Auth
@@ -122,6 +159,7 @@ Feature-first, layered inside each feature. Dependencies point inwards: `domain/
 ```
 app/
   main.py                    app factory (`uvicorn --factory app.main:create_app`)
+  health/router.py           /healthz + /readyz probes (its own module: readiness checks the images feature's storage)
   core/                      shared plumbing
     config.py                settings
     db.py                    engine / session factory, declarative base
@@ -143,7 +181,8 @@ app/
       schemas.py             response models
       dependencies.py        wires ImageService -> ImageStorage + ImageRepository + ImageValidator via FastAPI Depends
 alembic/                     Alembic env + versions/ (env.py takes the URL from PROGIMAGE_DATABASE_URL; imports every feature's ORM models)
-docker-compose.yml           Postgres
+Dockerfile                   multi-stage image: uv-built venv, slim non-root runtime
+docker-compose.yml           Postgres, one-shot migrate job, api
 tests/                       class-based tests; each folder's tests get its marker automatically
   unit/                      ImageService against in-memory fake storage + repository (no I/O)
   integration/               API via TestClient + real LocalImageStorage on a temp dir + real Postgres (swapped via dependency_overrides)
