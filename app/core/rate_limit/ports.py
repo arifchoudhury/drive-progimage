@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from typing import Protocol, Self
 
@@ -18,7 +19,7 @@ class RateLimitResult:
             allowed=count <= limit,
             limit=limit,
             remaining=max(0, limit - count),
-            reset_after=max(1, int(-(-reset_after // 1))),  # ceil, never 0
+            reset_after=max(1, math.ceil(reset_after)),
         )
 
     def headers(self) -> dict[str, str]:

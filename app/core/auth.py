@@ -19,8 +19,8 @@ def require_auth(
     machine-to-machine: OAuth2 client credentials, API keys or mTLS) and would carry a per-caller identity.
     """
     # Compare both fields without short-circuiting, in constant time.
-    username_ok = secrets.compare_digest(credentials.username.encode(), settings.auth_username.encode())
-    password_ok = secrets.compare_digest(
+    username_ok: bool = secrets.compare_digest(credentials.username.encode(), settings.auth_username.encode())
+    password_ok: bool = secrets.compare_digest(
         credentials.password.encode(), settings.auth_password.get_secret_value().encode()
     )
     if not (username_ok and password_ok):

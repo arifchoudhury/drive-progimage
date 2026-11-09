@@ -1,7 +1,7 @@
 from collections.abc import Iterator
 from functools import lru_cache
 
-from sqlalchemy import MetaData, create_engine
+from sqlalchemy import Engine, MetaData, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.core.config import get_settings
@@ -24,7 +24,7 @@ class Base(DeclarativeBase):
 def get_session_factory() -> sessionmaker[Session]:
     """One engine (and connection pool) per process. Tests swap `get_session` via dependency_overrides."""
     # connect_timeout: fail fast when Postgres is unreachable, so /readyz answers 503 instead of hanging.
-    engine = create_engine(get_settings().database_url, pool_pre_ping=True, connect_args={"connect_timeout": 5})
+    engine: Engine = create_engine(get_settings().database_url, pool_pre_ping=True, connect_args={"connect_timeout": 5})
     return sessionmaker(engine, expire_on_commit=False)
 
 

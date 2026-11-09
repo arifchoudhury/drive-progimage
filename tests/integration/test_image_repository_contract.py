@@ -32,7 +32,7 @@ def _image(**overrides: object) -> Image:
         "size_bytes": 123,
         "created_at": datetime.now(UTC),
     }
-    return Image(**{**fields, **overrides})  # type: ignore[arg-type]
+    return Image.model_validate(fields | overrides)
 
 
 class TestImageRepositoryContract:

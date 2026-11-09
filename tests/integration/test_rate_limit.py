@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import Callable
+from typing import cast
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -9,7 +10,7 @@ from app.core.config import Settings, get_settings
 
 def _limit(client: TestClient, **limits: int) -> None:
     """Lower the rate limits for this test's app."""
-    app: FastAPI = client.app  # type: ignore[assignment]
+    app = cast(FastAPI, client.app)
     settings: Settings = app.dependency_overrides[get_settings]()
     lowered = settings.model_copy(update=limits)
     app.dependency_overrides[get_settings] = lambda: lowered

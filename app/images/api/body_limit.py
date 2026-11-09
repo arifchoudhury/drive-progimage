@@ -31,12 +31,12 @@ class MaxBodySizeMiddleware:
             await self.app(scope, receive, send)
             return
 
-        declared = Headers(scope=scope).get("content-length")
+        declared: str | None = Headers(scope=scope).get("content-length")
         if declared is not None and declared.isdigit() and int(declared) > self.max_bytes:
             await self._reject(scope, receive, send)
             return
 
-        received = 0
+        received: int = 0
 
         async def limited_receive() -> Message:
             nonlocal received

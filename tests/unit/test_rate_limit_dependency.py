@@ -21,7 +21,7 @@ def _settings(**overrides: object) -> Settings:
         "rate_limit_write_per_minute": 2,
         "rate_limit_read_per_minute": 3,
     }
-    return Settings(**(values | overrides))  # type: ignore[arg-type]
+    return Settings.model_validate(values | overrides)
 
 
 @pytest.fixture

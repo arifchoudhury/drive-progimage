@@ -13,7 +13,7 @@ class LocalImageStorage:
         self._path(key).write_bytes(data)
 
     def load(self, key: str) -> bytes | None:
-        path = self._path(key)
+        path: Path = self._path(key)
         return path.read_bytes() if path.is_file() else None
 
     def check(self) -> None:

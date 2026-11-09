@@ -46,7 +46,6 @@ class ImageValidator:
             raise ImageTooLargeError(self._max_bytes)
 
         try:
-            # Pillow raises DecompressionBombError from open() when the header claims an absurd size.
             with Image.open(io.BytesIO(data)) as img:
                 fmt = img.format or ""
                 width, height = img.size
