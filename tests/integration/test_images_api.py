@@ -110,3 +110,27 @@ class TestGetImage:
 
     def test_malformed_id_is_rejected(self, client: TestClient) -> None:
         assert client.get("/images/not-a-valid-id").status_code == 422
+
+
+class TestListImages:
+    def test_empty_when_nothing_is_stored(self, client: TestClient) -> None:
+        response = client.get("/images")
+        assert response.status_code == 200
+        assert response.json() == {"items": []}
+
+    def test_lists_every_upload_newest_first_without_the_storage_key(
+        self, client: TestClient, make_image: Callable[[str], bytes]
+    ) -> None:
+        image = make_image("PNG")
+        ids = [client.post("/images", files={"file": (f"{n}.png", image, "image/png")}).json()["id"] for n in range(3)]
+
+        items = client.get("/images").json()["items"]
+
+        assert [item["id"] for item in items] == ids[::-1]
+        assert items[0].keys() == {"id", "original_filename", "content_type", "size_bytes", "created_at"}
+        assert items[0]["original_filename"] == "2.png"
+        assert items[0]["content_type"] == "image/png"
+        assert items[0]["size_bytes"] == len(image)
+
+    def test_requires_credentials(self, anonymous_client: TestClient) -> None:
+        assert anonymous_client.get("/images").status_code == 401

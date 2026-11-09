@@ -52,3 +52,7 @@ class ImageService:
         if data is None:  # row exists but the blob is gone: treat as missing rather than a server error
             raise ImageNotFoundError(image_id)
         return ImageContent(data=data, content_type=image.content_type)
+
+    def list(self) -> list[Image]:
+        """All image metadata, newest first. TODO(pagination): see ImageRepository.list."""
+        return self._repository.list()

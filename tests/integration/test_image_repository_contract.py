@@ -54,3 +54,12 @@ class TestImageRepositoryContract:
         repository.add(a)
         repository.add(b)
         assert (repository.get(a.id), repository.get(b.id)) == (a, b)
+
+    def test_list_of_an_empty_repository_is_empty(self, repository: ImageRepository) -> None:
+        assert repository.list() == []
+
+    def test_list_returns_every_image_newest_first(self, repository: ImageRepository) -> None:
+        older, newer = _image(storage_key="a.png"), _image(storage_key="b.png")
+        repository.add(older)
+        repository.add(newer)
+        assert repository.list() == [newer, older]

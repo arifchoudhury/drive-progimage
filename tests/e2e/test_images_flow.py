@@ -36,3 +36,11 @@ class TestImageRoundTrip:
     def test_unsupported_format_is_415(self, http: httpx2.Client, make_image: Callable[[str], bytes]) -> None:
         response = http.post("/images", files={"file": ("a.tiff", make_image("TIFF"), "image/tiff")})
         assert response.status_code == 415
+
+    def test_uploaded_image_appears_in_the_list(self, http: httpx2.Client, make_image: Callable[[str], bytes]) -> None:
+        image_id = http.post("/images", files={"file": ("p.png", make_image("PNG"), "image/png")}).json()["id"]
+
+        listed = http.get("/images")
+
+        assert listed.status_code == 200
+        assert image_id in [item["id"] for item in listed.json()["items"]]

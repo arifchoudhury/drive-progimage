@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 
 from app.core.auth import require_auth
 from app.images.api.dependencies import ImageServiceDep
-from app.images.api.schemas import ImageUploadResponse
+from app.images.api.schemas import ImageListResponse, ImageSummary, ImageUploadResponse
 from app.images.domain.exceptions import (
     ImageNotFoundError,
     ImageRejectedError,
@@ -47,6 +47,12 @@ def upload_image(file: Annotated[UploadFile, File()], service: ImageServiceDep) 
     except ImageRejectedError as exc:
         raise _rejection_to_http(exc) from exc
     return ImageUploadResponse(id=image_id)
+
+
+@router.get("")
+def list_images(service: ImageServiceDep) -> ImageListResponse:
+    # TODO(pagination): returns every image. Add `limit` and `cursor` query params, then a `next_cursor` field.
+    return ImageListResponse(items=[ImageSummary.model_validate(i, from_attributes=True) for i in service.list()])
 
 
 @router.get(
