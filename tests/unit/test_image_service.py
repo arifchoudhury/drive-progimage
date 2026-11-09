@@ -130,10 +130,11 @@ class TestUpload:
 
 class TestGet:
     @pytest.mark.parametrize(
-        ("fmt", "content_type"), [("PNG", "image/png"), ("JPEG", "image/jpeg"), ("GIF", "image/gif")]
+        ("fmt", "content_type", "extension"),
+        [("PNG", "image/png", "png"), ("JPEG", "image/jpeg", "jpg"), ("GIF", "image/gif", "gif")],
     )
-    def test_returns_the_bytes_with_the_recorded_content_type(
-        self, service: ImageService, make_image: Callable[[str], bytes], fmt: str, content_type: str
+    def test_returns_the_bytes_with_the_recorded_content_type_and_extension(
+        self, service: ImageService, make_image: Callable[[str], bytes], fmt: str, content_type: str, extension: str
     ) -> None:
         data = make_image(fmt)
         image_id = service.upload(data)
@@ -142,6 +143,7 @@ class TestGet:
 
         assert stored.data == data
         assert stored.content_type == content_type
+        assert stored.extension == extension
 
     def test_unknown_id_raises_not_found(self, service: ImageService) -> None:
         with pytest.raises(ImageNotFoundError):

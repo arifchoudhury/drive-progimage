@@ -51,7 +51,8 @@ class ImageService:
         data = self._storage.load(image.storage_key)
         if data is None:  # row exists but the blob is gone: treat as missing rather than a server error
             raise ImageNotFoundError(image_id)
-        return ImageContent(data=data, content_type=image.content_type)
+        extension = PurePosixPath(image.storage_key).suffix.lstrip(".")
+        return ImageContent(data=data, content_type=image.content_type, extension=extension)
 
     def list(self) -> list[Image]:
         """All image metadata, newest first. TODO(pagination): see ImageRepository.list."""

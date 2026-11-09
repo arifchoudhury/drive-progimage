@@ -1,4 +1,3 @@
-import mimetypes
 import uuid
 from typing import Annotated, Any
 
@@ -83,10 +82,9 @@ def get_image(image_id: uuid.UUID, service: ImageServiceDep, response: Response)
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Image not found") from exc
     # A returned Response skips FastAPI's merge of dependency-set headers (RateLimit-*), so carry them over.
     # The download name is generated, never the client's filename.
-    extension = mimetypes.guess_extension(image.content_type) or ""
     headers = {
         **response.headers,
         **_SERVE_HEADERS,
-        "Content-Disposition": f'inline; filename="{image_id}{extension}"',
+        "Content-Disposition": f'inline; filename="{image_id}.{image.extension}"',
     }
     return Response(content=image.data, media_type=image.content_type, headers=headers)
