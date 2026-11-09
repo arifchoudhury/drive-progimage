@@ -10,6 +10,9 @@ x-app-env: &app-env
   # These win over .env, which points at the host-side port for local (non-Docker) runs.
   PROGIMAGE_DATABASE_URL: postgresql+psycopg://progimage:progimage@db:5432/progimage
   PROGIMAGE_STORAGE_DIR: /data/images
+  # Two workers share one rate-limit count only through Redis (in-memory counts are per process).
+  PROGIMAGE_RATE_LIMIT_BACKEND: redis
+  PROGIMAGE_REDIS_URL: redis://redis:6379/0
 
 services:
   db:
@@ -25,6 +28,18 @@ services:
       - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U progimage -d progimage"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  # Rate-limit counters only: short-lived keys, nothing worth persisting.
+  redis:
+    image: redis:8
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6380:6379"  # 6380 on the host so it does not clash with a local Redis on 6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 2s
       timeout: 3s
       retries: 15
@@ -51,6 +66,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     # Gate on readiness, so `docker compose up --wait` returns only once the DB and storage are usable.
     healthcheck:

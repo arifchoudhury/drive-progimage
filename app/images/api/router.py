@@ -4,6 +4,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 
 from app.core.auth import require_auth
+from app.core.rate_limit import enforce_rate_limit
 from app.images.api.dependencies import ImageServiceDep
 from app.images.api.schemas import ImageListResponse, ImageSummary, ImageUploadResponse
 from app.images.domain.exceptions import (
@@ -15,8 +16,14 @@ from app.images.domain.exceptions import (
 )
 from app.images.domain.validation import DEFAULT_ALLOWED_FORMATS
 
-# TEMPORARY shared-credential Basic auth on every image endpoint; see app/core/auth.py.
-router = APIRouter(prefix="/images", tags=["images"], dependencies=[Depends(require_auth)])
+# Rate limit first, so failed logins count too (it also caps password guessing). Then the TEMPORARY
+# shared-credential Basic auth on every image endpoint; see app/core/auth.py.
+router = APIRouter(
+    prefix="/images",
+    tags=["images"],
+    dependencies=[Depends(enforce_rate_limit), Depends(require_auth)],
+    responses={status.HTTP_429_TOO_MANY_REQUESTS: {"description": "Rate limit exceeded; see Retry-After"}},
+)
 
 _ACCEPTED = ", ".join(sorted(DEFAULT_ALLOWED_FORMATS))
 
@@ -58,9 +65,10 @@ def list_images(service: ImageServiceDep) -> ImageListResponse:
 @router.get(
     "/{image_id}", response_class=Response, responses={status.HTTP_404_NOT_FOUND: {"description": "No such image"}}
 )
-def get_image(image_id: uuid.UUID, service: ImageServiceDep) -> Response:
+def get_image(image_id: uuid.UUID, service: ImageServiceDep, response: Response) -> Response:
     try:
         image = service.get(image_id)
     except ImageNotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Image not found") from exc
-    return Response(content=image.data, media_type=image.content_type)
+    # A returned Response skips FastAPI's merge of dependency-set headers (RateLimit-*), so carry them over.
+    return Response(content=image.data, media_type=image.content_type, headers=response.headers)

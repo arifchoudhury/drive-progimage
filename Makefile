@@ -20,8 +20,9 @@ logs:
 docker-build:
 	docker compose build
 
+# Backing services for local runs and tests: Postgres, plus Redis for the rate limiter.
 db-up:
-	docker compose up -d --wait db
+	docker compose up -d --wait db redis
 
 db-down:
 	docker compose down
@@ -29,7 +30,7 @@ db-down:
 # DESTROYS local dev data: drops the Postgres volume, restarts it and re-applies all migrations.
 db-reset:
 	docker compose down -v
-	docker compose up -d --wait db
+	docker compose up -d --wait db redis
 	uv run alembic upgrade head
 
 migrate:

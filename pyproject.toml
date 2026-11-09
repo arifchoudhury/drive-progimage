@@ -19,6 +19,9 @@ dependencies = [
 s3 = [
     "boto3>=1.35",
 ]
+redis = [
+    "redis>=8.1",
+]
 dev = [
     "pytest>=8.3",
     "httpx2>=2.16",
