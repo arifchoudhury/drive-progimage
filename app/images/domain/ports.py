@@ -13,6 +13,10 @@ class ImageStorage(Protocol):
 
     def load(self, key: str) -> bytes | None: ...
 
+    def check(self) -> None:
+        """Raise if the backend can't currently be used (readiness probe). Must be cheap and leave nothing behind."""
+        ...
+
 
 class ImageRepository(Protocol):
     """Persists image metadata (the Image entity)."""

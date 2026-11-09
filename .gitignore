@@ -11,10 +11,3 @@ coverage.xml
 local_storage/
 .DS_Store
 
-# Terraform
-infra/**/.terraform/
-infra/**/*.tfstate
-infra/**/*.tfstate.*
-infra/**/backend.hcl
-infra/**/*.tfvars
-!infra/**/*.tfvars.example

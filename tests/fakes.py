@@ -6,14 +6,19 @@ from app.images.domain.entities import Image
 class InMemoryStorage:
     """Fake ImageStorage: keeps blobs in a dict, touches no filesystem."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, healthy: bool = True) -> None:
         self.files: dict[str, bytes] = {}
+        self.healthy = healthy
 
     def save(self, key: str, data: bytes) -> None:
         self.files[key] = data
 
     def load(self, key: str) -> bytes | None:
         return self.files.get(key)
+
+    def check(self) -> None:
+        if not self.healthy:
+            raise OSError("storage unavailable")
 
 
 class InMemoryImageRepository:

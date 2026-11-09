@@ -15,6 +15,9 @@ class FakeS3Client:
     def put_object(self, *, Bucket: str, Key: str, Body: bytes, ContentType: str) -> None:
         self.objects[(Bucket, Key)] = {"Body": Body, "ContentType": ContentType}
 
+    def head_bucket(self, *, Bucket: str) -> dict[str, Any]:
+        return {}
+
     def get_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
         try:
             return {"Body": io.BytesIO(self.objects[(Bucket, Key)]["Body"])}

@@ -23,7 +23,8 @@ class Base(DeclarativeBase):
 @lru_cache
 def get_session_factory() -> sessionmaker[Session]:
     """One engine (and connection pool) per process. Tests swap `get_session` via dependency_overrides."""
-    engine = create_engine(get_settings().database_url, pool_pre_ping=True)
+    # connect_timeout: fail fast when Postgres is unreachable, so /readyz answers 503 instead of hanging.
+    engine = create_engine(get_settings().database_url, pool_pre_ping=True, connect_args={"connect_timeout": 5})
     return sessionmaker(engine, expire_on_commit=False)
 
 

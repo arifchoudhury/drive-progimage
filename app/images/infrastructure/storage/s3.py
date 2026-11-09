@@ -41,5 +41,9 @@ class S3ImageStorage:
         body: bytes = response["Body"].read()
         return body
 
+    def check(self) -> None:
+        # Raises if the bucket is missing or the credentials can't reach it.
+        self._client.head_bucket(Bucket=self._bucket)
+
     def _key(self, key: str) -> str:
         return f"{self._prefix}{key}"
