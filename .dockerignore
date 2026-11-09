@@ -1,0 +1,22 @@
+# Only app/, alembic/, alembic.ini, pyproject.toml and uv.lock are needed to build the image.
+.git
+.gitignore
+.venv
+.env
+.env.*
+local_storage/
+**/__pycache__
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.vscode/
+tests/
+bruno/
+sample_data/
+scripts/
+*.pdf
+*.md
+Dockerfile
+docker-compose.yml
+Makefile

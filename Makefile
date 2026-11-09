@@ -1,7 +1,20 @@
-.PHONY: setup db-up db-down db-reset migrate migration migrate-down migrate-current migrate-history migrate-check sample-data api lint format test test-unit test-integration test-e2e
+.PHONY: setup up down logs docker-build db-up db-down db-reset migrate migration migrate-down migrate-current migrate-history migrate-check sample-data api lint format test test-unit test-integration test-e2e
 
 setup:
 	uv sync --all-extras
+
+# The whole stack in Docker: Postgres, a one-shot migration, then the API on http://localhost:8080 (API_PORT).
+up:
+	docker compose up -d --build --wait api
+
+down:
+	docker compose down
+
+logs:
+	docker compose logs -f api
+
+docker-build:
+	docker compose build
 
 db-up:
 	docker compose up -d --wait db

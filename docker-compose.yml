@@ -1,3 +1,16 @@
+# Shared by the migrate job and the api: one image, configured by .env plus the overrides below.
+x-app: &app
+  build: .
+  image: progimage:local
+  env_file:
+    - path: .env  # auth credentials etc.; without them the app refuses to start
+      required: false
+
+x-app-env: &app-env
+  # These win over .env, which points at the host-side port for local (non-Docker) runs.
+  PROGIMAGE_DATABASE_URL: postgresql+psycopg://progimage:progimage@db:5432/progimage
+  PROGIMAGE_STORAGE_DIR: /data/images
+
 services:
   db:
     image: postgres:18
@@ -16,5 +29,37 @@ services:
       timeout: 3s
       retries: 15
 
+  # One-shot: brings the schema to head, then exits. The api waits for it to succeed.
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    environment: *app-env
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *app
+    environment:
+      <<: *app-env
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+    ports:
+      - "${API_PORT:-8080}:8000"  # host port is configurable; `make api` (no Docker) uses 8001
+    volumes:
+      - images:/data/images
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    # Gate on readiness, so `docker compose up --wait` returns only once the DB and storage are usable.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      retries: 5
+
 volumes:
   pgdata:
+  images:
